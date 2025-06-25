@@ -1,22 +1,27 @@
-# Binaries
-storage_control_plane
+# Logs and temp files
+*.log
+*.tmp
 *.exe
-*.out
-
-# Air build cache and logs
 tmp/
-.air
+air.log
+build-errors.log
 
-# IDE/editor settings
+# Local environment files
+.env
+*.env
+
+# IDE/editor config
 .vscode/
 .idea/
 
-# OS-specific files
+# OS-generated
 .DS_Store
+Thumbs.db
 
-# Log files
-*.log
+# Compiled Go binaries
+*.out
+*.exe
 
-# Config overrides (optional)
-.env
-*.local.yaml
+# Data/DB (optional, if you don’t want these in repo)
+data/*.db
+data/*.json
