@@ -1,3 +1,22 @@
-# Ignore binaries
-tmp/
+# Binaries
+storage_control_plane
 *.exe
+*.out
+
+# Air build cache and logs
+tmp/
+.air
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+
+# Log files
+*.log
+
+# Config overrides (optional)
+.env
+*.local.yaml
