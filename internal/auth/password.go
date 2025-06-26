@@ -1,3 +1,4 @@
+// internal/auth/password.go 
 package auth
 
 import (

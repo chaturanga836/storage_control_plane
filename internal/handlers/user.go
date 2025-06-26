@@ -1,3 +1,4 @@
+// internal/handlers/user.go 
 package handlers
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/models"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/utils"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/auth"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/registry"
 )
 
 type RegisterRequest struct {
@@ -65,7 +67,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save user", http.StatusInternalServerError)
 		return
 	}
-
+	registry.ReloadUsers()
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("User registered successfully"))
 }

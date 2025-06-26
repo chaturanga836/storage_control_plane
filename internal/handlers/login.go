@@ -1,9 +1,10 @@
+// internal/handlers/login.go 
 package handlers
 
 import (
 	"encoding/json"
 	"net/http"
-
+	"fmt"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/auth"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/registry"
 )
@@ -25,7 +26,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("LOGIN ATTEMPT USERNAME:", req.Username)
+	fmt.Println("LOGIN ATTEMPT PASSWORD:", req.Password)
+
 	user, ok := registry.GetUserByUsername(req.Username)
+	fmt.Println("USER FOUND?", ok)
+
 	if !ok || !auth.CheckPasswordHash(req.Password, user.Password) {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return

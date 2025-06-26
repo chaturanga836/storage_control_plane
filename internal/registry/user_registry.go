@@ -18,6 +18,11 @@ func LoadUserRegistry() {
 	log.Printf("👥 Loaded %d users", len(users))
 }
 
+
+func ReloadUsers() {
+	LoadUserRegistry()
+}
+
 func GetUserByUsername(username string) (*models.User, bool) {
 	for _, u := range users {
 		if u.Username == username {
