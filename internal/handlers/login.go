@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/auth"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/registry"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/logger"
 )
 
 type LoginRequest struct {
@@ -33,6 +34,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("USER FOUND?", ok)
 
 	if !ok || !auth.CheckPasswordHash(req.Password, user.Password) {
+		ip := r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+    		ip = r.RemoteAddr
+		}
+		logger.LogAudit(req.Username, "/auth/login", "failed", ip)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}

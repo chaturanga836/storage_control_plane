@@ -1,3 +1,4 @@
+// internal/handlers/tenant.go
 package handlers
 
 import (
@@ -6,11 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/models"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/registry"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/utils"
 )
 
 type TenantRequest struct {
-	Name    string `json:"name"`
+	Name   string `json:"name"`
 	NodeID string `json:"node_id"`
 }
 
@@ -42,13 +44,16 @@ func RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 🔄 Reload in-memory tenant index
+	_ = registry.ReloadTenants()
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newTenant)
 }
 
 type AssignRequest struct {
 	TenantID string `json:"tenant_id"`
-	NodeID  string `json:"node_id"`
+	NodeID   string `json:"node_id"`
 }
 
 func AssignNode(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +88,15 @@ func AssignNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 🔄 Reload in-memory tenant index
+	_ = registry.ReloadTenants()
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "node assigned"})
+}
+
+func ListTenants(w http.ResponseWriter, r *http.Request) {
+	tenants := registry.GetAllTenants()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tenants)
 }

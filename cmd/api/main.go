@@ -1,56 +1,52 @@
+// cmd/api/main.go
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/rs/cors"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/duck"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/logger"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/registry"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/router"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/shutdown"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go shutdown.HandleShutdown(cancel)
+
 	// ✅ Initialize DuckDB
-	err := duck.InitDuckDB("data/duck.db")
-	if err != nil {
-		log.Fatalf("DuckDB init failed: %v", err)
+	if err := duck.InitDuckDB("data/duck.db"); err != nil {
+		log.Fatalf("❌ DuckDB init failed: %v", err)
 	}
 
-	// ✅ Load users into in-memory registry
+	// ✅ Load users + tenants into in-memory registries
 	registry.LoadUserRegistry()
+	go registry.WatchUserFileChanges(ctx)
 
-	// ✅ Setup routes
+	registry.LoadTenantRegistry() // ✅ LOAD TENANTS
+	go registry.WatchTenantFileChanges(ctx) // ✅ WATCH TENANTS
+
+	// ✅ Setup router
 	r := router.SetupRoutes()
 
-	// ✅ Enable CORS for frontend (localhost:3000)
-	handler := cors.New(cors.Options{
+	// ✅ Setup CORS middleware for frontend integration
+	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
-	}).Handler(logRequest(r))
+	}).Handler(logger.LogRequest(r))
 
 	log.Println("🚀 Starting Go Storage Control Plane on port 8081")
 
-	// ✅ Wrap: CORS → Logging → Router
-	// handler := c.Handler(logRequest(r))
-	if err := http.ListenAndServe(":8081", handler); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	if err := http.ListenAndServe(":8081", corsHandler); err != nil {
+		log.Fatalf("❌ Server failed to start: %v", err)
 	}
 }
 
-// ✅ Middleware: Log requests, handle OPTIONS preflight
-func logRequest(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📥 %s %s", r.Method, r.URL.Path)
-
-		// ✅ Allow preflight to succeed
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
