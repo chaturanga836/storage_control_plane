@@ -4,7 +4,6 @@ package writers
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 	"path/filepath"
 

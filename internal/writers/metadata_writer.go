@@ -3,7 +3,10 @@ package writers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 )
@@ -56,4 +59,15 @@ func UpsertTenantSummary(conn clickhouse.Conn, meta FileMetadata) error {
 		meta.MinTS,
 		meta.MaxTS,
 	)
+}
+
+// WriteMetadata writes metadata to a JSON file
+func WriteMetadata(meta FileMetadata, dirPath string) error {
+	metaFile := filepath.Join(dirPath, "_stats.json")
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %v", err)
+	}
+	
+	return os.WriteFile(metaFile, data, 0644)
 }

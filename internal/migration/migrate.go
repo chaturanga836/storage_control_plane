@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/rocksdb"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/clickhouse"
-	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 )
 
 // Outline for tenant migration: shared → dedicated

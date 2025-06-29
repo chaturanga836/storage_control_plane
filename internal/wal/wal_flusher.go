@@ -29,7 +29,13 @@ func FlushWAL(walDir, dataDir, tenantID, sourceID string, flushThreshold int) {
 		dir := utils.BuildDirectoryPath(dataDir, tenantID, sourceID, hash, time.Now())
 		os.MkdirAll(dir, os.ModePerm)
 
-		filePath, err := writers.WriteParquetFile(records, dir, "auto")
+		// Convert records to the correct type
+		parquetRecords := make([]writers.ParquetRecord, len(records))
+		for i, record := range records {
+			parquetRecords[i] = writers.ParquetRecord(record)
+		}
+
+		filePath, err := writers.WriteParquetFile(parquetRecords, dir, "auto")
 		if err != nil {
 			fmt.Println("❌ Parquet write failed:", err)
 			continue
@@ -37,14 +43,19 @@ func FlushWAL(walDir, dataDir, tenantID, sourceID string, flushThreshold int) {
 
 		// Save _stats.json (or update ClickHouse)
 		meta := writers.FileMetadata{
-			TenantID:   tenantID,
-			SourceID:   sourceID,
-			FilePath:   filePath,
-			RowCount:   uint64(len(records)),
-			MinTS:      time.Now().Format(time.RFC3339), // (placeholder)
-			MaxTS:      time.Now().Format(time.RFC3339), // (placeholder)
-			SchemaHash: hash,
-			ColumnStats: "{}",
+			TenantID:     tenantID,
+			SourceID:     sourceID,
+			FilePath:     filePath,
+			RowCount:     uint64(len(records)),
+			MinTS:        time.Now().Format(time.RFC3339), // (placeholder)
+			MaxTS:        time.Now().Format(time.RFC3339), // (placeholder)
+			SchemaHash:   hash,
+			ColumnStats:  "{}",
+		}
+
+		// Use the metadata (write to file or send to ClickHouse)
+		if err := writers.WriteMetadata(meta, dir); err != nil {
+			fmt.Println("⚠️ Metadata write failed:", err)
 		}
 
 		// NOTE: ClickHouse connection must be passed to this goroutine or refactored
