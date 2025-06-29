@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"hybridstore/internal/routing"
-	"hybridstore/pkg/models"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/routing"
+	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 )
 
 type Server struct {

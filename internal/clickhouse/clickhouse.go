@@ -3,7 +3,7 @@ package clickhouse
 import (
 	"database/sql"
 	_ "github.com/ClickHouse/clickhouse-go/v2"
-	"hybridstore/pkg/models"
+	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 )
 
 type Store struct {

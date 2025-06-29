@@ -2,12 +2,11 @@ package routing
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	"hybridstore/internal/config"
-	"hybridstore/internal/rocksdb"
-	"hybridstore/internal/clickhouse"
-	"hybridstore/pkg/models"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/config"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/rocksdb"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/clickhouse"
+	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 	_ "github.com/lib/pq"
 )
 

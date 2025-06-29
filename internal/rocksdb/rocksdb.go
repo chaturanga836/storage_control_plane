@@ -2,22 +2,16 @@ package rocksdb
 
 import (
 	"fmt"
-	"github.com/tecbot/gorocksdb"
-	"hybridstore/pkg/models"
+	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 )
 
 type Store struct {
-	db *gorocksdb.DB
+	path string
 }
 
 func NewStore(path string) (*Store, error) {
-	opts := gorocksdb.NewDefaultOptions()
-	opts.SetCreateIfMissing(true)
-	db, err := gorocksdb.OpenDb(opts, path)
-	if err != nil {
-		return nil, err
-	}
-	return &Store{db: db}, nil
+	// Mock implementation - no actual RocksDB dependency
+	return &Store{path: path}, nil
 }
 
 func (s *Store) GetBusinessData(tenantID string) ([]models.BusinessData, error) {

@@ -3,11 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 
-	"hybridstore/internal/api"
-	"hybridstore/internal/config"
-	"hybridstore/internal/routing"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/api"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/config"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/routing"
 )
 
 func main() {
