@@ -1,21 +1,27 @@
 package api
 
 import (
-	"encoding/json"
-	"net/http"
-	"strconv"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/clickhouse"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/routing"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/utils"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/wal"
 	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
 )
 
 type Server struct {
-	router                *routing.Router
-	distributedManager    *clickhouse.DistributedIndexManager
-	isDistributedMode     bool
+	router             *routing.Router
+	distributedManager *clickhouse.DistributedIndexManager
+	isDistributedMode  bool
 }
 
 func NewServer(router *routing.Router) *Server {
@@ -128,9 +134,9 @@ func (s *Server) handleQueryData(w http.ResponseWriter, r *http.Request, backend
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	
+
 	req.TenantID = tenantID
-	
+
 	// Validate sort fields based on query type
 	var sortOptions utils.SortOptions
 	switch req.QueryType {
@@ -146,7 +152,7 @@ func (s *Server) handleQueryData(w http.ResponseWriter, r *http.Request, backend
 	default:
 		sortOptions = utils.DataIngestionSortOptions
 	}
-	
+
 	// Validate sort parameters
 	validatedSorts, err := utils.ValidateSortFields(req.SortBy, sortOptions)
 	if err != nil {
@@ -154,23 +160,23 @@ func (s *Server) handleQueryData(w http.ResponseWriter, r *http.Request, backend
 		return
 	}
 	req.SortBy = validatedSorts
-	
+
 	// Use large-scale query executor for better performance
 	config := utils.DefaultLargeScaleConfig
-	
+
 	// Type assert to get the actual ClickHouse store
 	clickhouseStore, ok := backend.ClickHouse.(*clickhouse.Store)
 	if !ok {
 		http.Error(w, "ClickHouse backend not available", http.StatusInternalServerError)
 		return
 	}
-	
+
 	executor := clickhouse.NewLargeScaleQueryExecutor(clickhouseStore, config)
-	
+
 	// Execute query with large-scale optimizations
 	var response *models.QueryResponse
 	var queryErr error
-	
+
 	// Use distributed query optimization if available
 	if s.isDistributedMode && s.distributedManager != nil {
 		response, queryErr = s.executeDistributedQuery(r.Context(), &req, tenantID)
@@ -178,12 +184,12 @@ func (s *Server) handleQueryData(w http.ResponseWriter, r *http.Request, backend
 		// Execute with large-scale query executor
 		response, queryErr = executor.ExecuteLargeQuery(r.Context(), req)
 	}
-	
+
 	if queryErr != nil {
 		http.Error(w, "query execution failed: "+queryErr.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -194,12 +200,12 @@ func (s *Server) executeDistributedQuery(ctx context.Context, req *models.QueryR
 	whereConditions := map[string]interface{}{
 		"tenant_id": tenantID,
 	}
-	
+
 	// Add filters to where conditions
 	for field, value := range req.Filters {
 		whereConditions[field] = value
 	}
-	
+
 	// Optimize query for distributed execution
 	optimizedQuery, err := s.distributedManager.OptimizeDistributedQuery(
 		req.Query,
@@ -209,7 +215,7 @@ func (s *Server) executeDistributedQuery(ctx context.Context, req *models.QueryR
 	if err != nil {
 		return nil, fmt.Errorf("failed to optimize distributed query: %w", err)
 	}
-	
+
 	// Execute optimized query (implementation would integrate with your query executor)
 	// For now, return a placeholder response
 	return &models.QueryResponse{
@@ -401,17 +407,17 @@ func (s *Server) handleAnalyticsSummary(w http.ResponseWriter, r *http.Request, 
 	sortOrder := r.URL.Query().Get("sort_order")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
-	
+
 	// Build sort parameters
 	sortFields := utils.BuildSortParams(sortBy, sortOrder)
-	
+
 	// Validate sort fields
 	validatedSorts, err := utils.ValidateSortFields(sortFields, utils.TenantSortOptions)
 	if err != nil {
 		http.Error(w, "invalid sort parameters: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Parse pagination
 	limit := 50 // default
 	if limitStr != "" {
@@ -419,14 +425,14 @@ func (s *Server) handleAnalyticsSummary(w http.ResponseWriter, r *http.Request, 
 			limit = l
 		}
 	}
-	
+
 	offset := 0
 	if offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
 			offset = o
 		}
 	}
-	
+
 	// TODO: Implement actual analytics query with sorting
 	summary := models.TenantSummary{
 		TenantID:      tenantID,
@@ -438,11 +444,235 @@ func (s *Server) handleAnalyticsSummary(w http.ResponseWriter, r *http.Request, 
 		NewestRecord:  models.TimeRange{}.End,
 		LastUpdated:   models.TimeRange{}.End,
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"data":       summary,
 		"sort_by":    validatedSorts,
 		"pagination": map[string]int{"limit": limit, "offset": offset},
 	})
+}
+
+// Data ingestion endpoints
+func (s *Server) setupRoutes() {
+	// ...existing routes...
+
+	// Data ingestion endpoints
+	s.router.HandleFunc("/api/v1/tenants/{tenant_id}/sources/{source_id}/ingest", s.ingestData).Methods("POST")
+	s.router.HandleFunc("/api/v1/tenants/{tenant_id}/sources/{source_id}/batch", s.ingestBatch).Methods("POST")
+	
+	// Parquet file management endpoints
+	s.router.HandleFunc("/api/v1/tenants/{tenant_id}/sources/{source_id}/files", s.listParquetFiles).Methods("GET")
+	s.router.HandleFunc("/api/v1/tenants/{tenant_id}/files", s.listTenantFiles).Methods("GET")
+	s.router.HandleFunc("/api/v1/files/{file_id}/stats", s.getFileStats).Methods("GET")
+}
+
+// ingestData handles single record ingestion
+func (s *Server) ingestData(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tenantID := vars["tenant_id"]
+	sourceID := vars["source_id"]
+
+	var record map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&record); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Add metadata
+	enrichedRecord := map[string]interface{}{
+		"tenant_id": tenantID,
+		"source_id": sourceID,
+		"data":      record,
+		"ingested_at": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Write to WAL for durability
+	walDir := filepath.Join("data", "wal", tenantID, sourceID)
+	if err := wal.AppendToWAL(walDir, enrichedRecord); err != nil {
+		log.Printf("❌ Failed to write to WAL: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"status": "accepted",
+		"message": "Data queued for processing",
+		"tenant_id": tenantID,
+		"source_id": sourceID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// ingestBatch handles batch record ingestion
+func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tenantID := vars["tenant_id"]
+	sourceID := vars["source_id"]
+
+	var records []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&records); err != nil {
+		http.Error(w, "Invalid JSON array", http.StatusBadRequest)
+		return
+	}
+
+	walDir := filepath.Join("data", "wal", tenantID, sourceID)
+	successCount := 0
+
+	for _, record := range records {
+		enrichedRecord := map[string]interface{}{
+			"tenant_id": tenantID,
+			"source_id": sourceID,
+			"data":      record,
+			"ingested_at": time.Now().UTC().Format(time.RFC3339),
+		}
+
+		if err := wal.AppendToWAL(walDir, enrichedRecord); err != nil {
+			log.Printf("❌ Failed to write record to WAL: %v", err)
+			continue
+		}
+		successCount++
+	}
+
+	response := map[string]interface{}{
+		"status": "completed",
+		"total_records": len(records),
+		"successful_records": successCount,
+		"failed_records": len(records) - successCount,
+		"message": "Batch queued for processing",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// listParquetFiles lists Parquet files for a specific tenant/source
+func (s *Server) listParquetFiles(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tenantID := vars["tenant_id"]
+	sourceID := vars["source_id"]
+
+	// Parse query parameters
+	limit := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	offset := 0
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
+	// List files from data directory
+	basePath := filepath.Join("data", "parquet", tenantID, sourceID)
+	files, err := s.discoverParquetFiles(basePath, limit, offset)
+	if err != nil {
+		log.Printf("❌ Failed to list files for %s/%s: %v", tenantID, sourceID, err)
+		http.Error(w, "Failed to list files", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"tenant_id": tenantID,
+		"source_id": sourceID,
+		"files":     files,
+		"total":     len(files),
+		"limit":     limit,
+		"offset":    offset,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// listTenantFiles lists all Parquet files for a tenant across all sources
+func (s *Server) listTenantFiles(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tenantID := vars["tenant_id"]
+
+	basePath := filepath.Join("data", "parquet", tenantID)
+	allFiles := make(map[string][]map[string]interface{})
+
+	// Discover source directories
+	sourceDirs, err := filepath.Glob(filepath.Join(basePath, "*"))
+	if err != nil {
+		log.Printf("❌ Failed to list sources for tenant %s: %v", tenantID, err)
+		http.Error(w, "Failed to list files", http.StatusInternalServerError)
+		return
+	}
+
+	for _, sourceDir := range sourceDirs {
+		sourceID := filepath.Base(sourceDir)
+		files, err := s.discoverParquetFiles(sourceDir, 50, 0)
+		if err == nil && len(files) > 0 {
+			allFiles[sourceID] = files
+		}
+	}
+
+	response := map[string]interface{}{
+		"tenant_id": tenantID,
+		"sources":   allFiles,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// getFileStats returns detailed statistics for a specific Parquet file
+func (s *Server) getFileStats(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	fileID := vars["file_id"]
+
+	// In a real system, you'd look up the file by ID in ClickHouse
+	// For now, return a placeholder response
+	response := map[string]interface{}{
+		"file_id": fileID,
+		"message": "File stats would be retrieved from ClickHouse metadata",
+		"note":    "This endpoint needs ClickHouse integration for full functionality",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// discoverParquetFiles walks the directory structure to find Parquet files
+func (s *Server) discoverParquetFiles(basePath string, limit, offset int) ([]map[string]interface{}, error) {
+	var files []map[string]interface{}
+	count := 0
+
+	err := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors, continue walking
+		}
+
+		if !info.IsDir() && strings.HasSuffix(path, ".parquet") {
+			if count >= offset && len(files) < limit {
+				// Try to read accompanying metadata
+				metaPath := filepath.Join(filepath.Dir(path), "_stats.json")
+				var metadata map[string]interface{}
+				if metaData, err := os.ReadFile(metaPath); err == nil {
+					json.Unmarshal(metaData, &metadata)
+				}
+
+				fileInfo := map[string]interface{}{
+					"file_path":  path,
+					"file_name":  info.Name(),
+					"size_bytes": info.Size(),
+					"modified":   info.ModTime().Format(time.RFC3339),
+					"metadata":   metadata,
+				}
+				files = append(files, fileInfo)
+			}
+			count++
+		}
+		return nil
+	})
+
+	return files, err
 }

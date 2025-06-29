@@ -6,11 +6,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/api"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/clickhouse"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/config"
 	"github.com/chaturanga836/storage_system/go-control-plane/internal/routing"
+	"github.com/chaturanga836/storage_system/go-control-plane/internal/wal"
 )
 
 func main() {
@@ -19,6 +21,9 @@ func main() {
 		log.Fatalf("config load: %v", err)
 	}
 	router := routing.NewRouter(cfg)
+
+	// Start background WAL flusher
+	startWALFlushers()
 
 	// Check if distributed mode is enabled
 	distributedMode := os.Getenv("DISTRIBUTED_MODE")
@@ -48,6 +53,36 @@ func main() {
 	if err := http.ListenAndServe(addr, server); err != nil {
 		log.Fatalf("server: %v", err)
 	}
+}
+
+// startWALFlushers starts the Write-Ahead Log (WAL) flushers in the background
+func startWALFlushers() {
+	log.Println("🔄 Starting WAL flusher background processes...")
+	
+	// In a real system, you'd discover active tenants from ClickHouse
+	// For now, start flushers for common patterns
+	walDir := os.Getenv("WAL_DIR")
+	if walDir == "" {
+		walDir = "data/wal"
+	}
+	
+	dataDir := os.Getenv("DATA_DIR") 
+	if dataDir == "" {
+		dataDir = "data/parquet"
+	}
+	
+	flushThreshold := 100
+	if envThreshold := os.Getenv("WAL_FLUSH_THRESHOLD"); envThreshold != "" {
+		if threshold, err := strconv.Atoi(envThreshold); err == nil {
+			flushThreshold = threshold
+		}
+	}
+	
+	// Start a generic flusher that monitors all tenant/source combinations
+	go func() {
+		log.Printf("🔄 WAL flusher started (threshold: %d records)", flushThreshold)
+		wal.FlushAllTenants(walDir, dataDir, flushThreshold)
+	}()
 }
 
 // setupDistributedManager creates and configures the distributed index manager
