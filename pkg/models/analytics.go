@@ -12,8 +12,22 @@ type QueryRequest struct {
 	TimeRange   *TimeRange        `json:"time_range,omitempty"`
 	Limit       int               `json:"limit,omitempty"`
 	Offset      int               `json:"offset,omitempty"`
+	SortBy      []SortField       `json:"sort_by,omitempty"`
 	Format      ResponseFormat    `json:"format"`
 }
+
+// SortField defines sorting criteria
+type SortField struct {
+	Field     string    `json:"field"`
+	Direction SortOrder `json:"direction"`
+}
+
+type SortOrder string
+
+const (
+	SortAsc  SortOrder = "asc"
+	SortDesc SortOrder = "desc"
+)
 
 type QueryType string
 

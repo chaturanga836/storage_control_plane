@@ -167,6 +167,44 @@ for i in {1..5}; do
   echo "📦 Bulk record $i sent"
 done
 
+# Test 6: Query with Sorting
+echo "🔄 Testing query with sorting..."
+SORT_QUERY='{
+  "tenant_id": "'$TENANT_ID'",
+  "query_type": "sql", 
+  "query": "SELECT * FROM tenant_data",
+  "sort_by": [
+    {"field": "created_at", "direction": "desc"},
+    {"field": "data_id", "direction": "asc"}
+  ],
+  "limit": 10,
+  "offset": 0,
+  "format": "json"
+}'
+
+SORT_RESPONSE=$(curl -s -w "%{http_code}" \
+  --connect-timeout $TIMEOUT_SECONDS \
+  --max-time $TIMEOUT_SECONDS \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-Id: $TENANT_ID" \
+  -d "$SORT_QUERY" \
+  "$BASE_URL/data/query")
+
+SORT_HTTP_CODE="${SORT_RESPONSE: -3}"
+echo "📊 Sort Query Response Code: $SORT_HTTP_CODE"
+
+# Test 7: Analytics with Sorting
+echo "🔄 Testing analytics with sorting..."
+ANALYTICS_RESPONSE=$(curl -s -w "%{http_code}" \
+  --connect-timeout $TIMEOUT_SECONDS \
+  --max-time $TIMEOUT_SECONDS \
+  -H "X-Tenant-Id: $TENANT_ID" \
+  "$BASE_URL/analytics/summary?sort_by=created_at,total_files&sort_order=desc,asc&limit=5")
+
+ANALYTICS_HTTP_CODE="${ANALYTICS_RESPONSE: -3}"
+echo "📊 Analytics Response Code: $ANALYTICS_HTTP_CODE"
+
 echo "🎉 End-to-End Tests Completed!"
 echo ""
 echo "📝 Test Summary:"
@@ -175,6 +213,8 @@ echo "   - Data Ingestion: JSON data with nested structures"
 echo "   - Data Retrieval: Reading stored data"
 echo "   - Schema Evolution: Different JSON structure"
 echo "   - Bulk Processing: Multiple records"
+echo "   - Query with Sorting: Advanced query capabilities"
+echo "   - Analytics with Sorting: Sorted analytics data"
 echo ""
 echo "🔍 Check application logs for WAL/Parquet processing"
 echo "🗄️  Check ClickHouse for table creation and data storage"
