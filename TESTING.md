@@ -2,26 +2,93 @@
 
 ## 🧪 Testing Strategy Overview
 
-This project uses a comprehensive testing approach:
-- **Unit Tests** - Test individual functions and components
-- **Integration Tests** - Test component interactions
-- **End-to-End Tests** - Test complete user workflows
-- **Performance Tests** - Test throughput and memory usage
+This project uses a comprehensive testing approach with organized test directories:
+- **Unit Tests** (`test/unit/`) - Test individual functions and components (no dependencies)
+- **Integration Tests** (`test/integration/`) - Test component interactions (requires services)
+- **End-to-End Tests** (`test/e2e/`) - Test complete user workflows (full system)
+- **Test Fixtures** (`test/fixtures/`) - Shared test data generators and utilities
+
+## 📁 Test Directory Structure
+
+```
+test/
+├── unit/               # Unit tests - fast, no external dependencies
+│   ├── large_scale_sort_test.go
+│   ├── sort_utils_test.go
+│   └── wal_test.go
+├── integration/        # Integration tests - require external services
+│   ├── schema_test.go
+│   ├── index_manager_test.go
+│   ├── distributed_index_manager_test.go
+│   └── server_test.go
+├── e2e/               # End-to-end tests - full system tests
+│   ├── test_e2e.ps1
+│   └── test_e2e.sh
+├── testdata/          # Test data files and databases
+│   └── duck.db
+├── fixtures/          # Test fixtures and mock data generators
+│   └── test_data_generator.go
+├── run_tests.sh       # Unix test runner script
+├── run_tests.ps1      # Windows test runner script
+└── README.md          # Detailed test documentation
+```
 
 ## 🏃‍♂️ Quick Test Commands
 
+### Using Test Runner Scripts (Recommended)
+
+**Windows:**
+```powershell
+# Run all tests
+.\test\run_tests.ps1 all
+
+# Run only unit tests (fast, no dependencies)
+.\test\run_tests.ps1 unit
+
+# Run integration tests (requires ClickHouse)
+.\test\run_tests.ps1 integration
+
+# Run E2E tests
+.\test\run_tests.ps1 e2e
+
+# Generate coverage report
+.\test\run_tests.ps1 coverage
+```
+
+**Linux/Mac:**
 ```bash
 # Run all tests
-make test
+./test/run_tests.sh all
 
-# Run unit tests only
+# Run only unit tests (fast, no dependencies)  
+./test/run_tests.sh unit
+
+# Run integration tests (requires ClickHouse)
+./test/run_tests.sh integration
+
+# Run E2E tests
+./test/run_tests.sh e2e
+
+# Generate coverage report
+./test/run_tests.sh coverage
+```
+
+### Using Make
+```bash
+# Unit tests only (no dependencies required)
 make test-unit
 
-# Run E2E tests (server must be running)
+# Integration tests (requires ClickHouse)
+make test-integration
+
+# E2E tests
 make test-e2e
 
-# Run with coverage
-make test-coverage
+# All tests (unit + integration)
+make test
+
+# All tests including E2E
+make test-all
 ```
 
 ## 📝 Unit Testing

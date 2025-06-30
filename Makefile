@@ -5,10 +5,11 @@
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-unit     - Run unit tests"
-	@echo "  make test-integration - Run integration tests"
+	@echo "  make test          - Run unit + integration tests"
+	@echo "  make test-unit     - Run unit tests (fast, no dependencies)"
+	@echo "  make test-integration - Run integration tests (requires services)"
 	@echo "  make test-e2e      - Run end-to-end tests"
+	@echo "  make test-all      - Run all tests including E2E"
 	@echo "  make build         - Build the application"
 	@echo "  make run           - Run the application"
 	@echo "  make clean         - Clean build artifacts"
@@ -33,20 +34,33 @@ build-all:
 	GOOS=darwin GOARCH=arm64 go build -o bin/storage-control-plane-darwin-arm64 ./cmd/api
 	@echo "✅ Built for Linux, Windows, macOS (Intel & Apple Silicon)"
 
-# Run unit tests
+# Run unit tests (fast, no external dependencies)
 test-unit:
 	@echo "🧪 Running unit tests..."
-	go test -v ./internal/... ./pkg/...
+	go test -v ./test/unit/...
 
-# Run integration tests (requires running services)
+# Run integration tests (requires external services)
 test-integration:
 	@echo "🔗 Running integration tests..."
-	@echo "⚠️  Make sure ClickHouse and PostgreSQL are running"
-	go test -v -tags=integration ./tests/integration/...
+	@echo "⚠️  Make sure ClickHouse and other services are running"
+	go test -v ./test/integration/...
+
+# Run end-to-end tests
+test-e2e:
+	@echo "🚀 Running end-to-end tests..."
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File ./test/e2e/test_e2e.ps1
+else
+	./test/e2e/test_e2e.sh
+endif
 
 # Run all tests
-test: test-unit
+test: test-unit test-integration
 	@echo "✅ All tests completed"
+
+# Run all tests including E2E
+test-all: test-unit test-integration test-e2e
+	@echo "🎉 All tests (including E2E) completed"
 
 # Run end-to-end tests (requires running server)
 test-e2e:

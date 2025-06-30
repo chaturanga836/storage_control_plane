@@ -1,8 +1,9 @@
-package utils
+package unit
 
 import (
 	"testing"
-	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
+	"github.com/your-org/storage-control-plane/pkg/models"
+	"github.com/your-org/storage-control-plane/internal/utils"
 )
 
 func TestValidateSortFields(t *testing.T) {

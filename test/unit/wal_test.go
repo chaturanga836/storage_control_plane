@@ -1,10 +1,12 @@
-package wal
+package unit
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	
+	"github.com/your-org/storage-control-plane/internal/wal"
 )
 
 func TestAppendToWAL(t *testing.T) {

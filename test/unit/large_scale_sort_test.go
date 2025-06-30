@@ -1,8 +1,9 @@
-package utils
+package unit
 
 import (
 	"testing"
-	"github.com/chaturanga836/storage_system/go-control-plane/pkg/models"
+	"github.com/your-org/storage-control-plane/pkg/models"
+	"github.com/your-org/storage-control-plane/internal/utils"
 )
 
 func TestLargeScaleSortValidation(t *testing.T) {
@@ -44,10 +45,10 @@ func TestLargeScaleSortValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := TenantSortOptions
-			config := DefaultLargeScaleConfig
+			opts := utils.TenantSortOptions
+			config := utils.DefaultLargeScaleConfig
 			
-			validatedFields, optimizedConfig, err := ValidateSortFieldsForScale(
+			validatedFields, optimizedConfig, err := utils.ValidateSortFieldsForScale(
 				tt.sortFields, opts, config, tt.estimatedRows)
 			
 			if tt.expectError {
@@ -106,7 +107,7 @@ func TestStreamingQueryGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := GenerateStreamingQuery(tt.baseQuery, tt.sortFields, tt.chunkSize, tt.lastValues)
+			result, err := utils.GenerateStreamingQuery(tt.baseQuery, tt.sortFields, tt.chunkSize, tt.lastValues)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
@@ -159,7 +160,7 @@ func TestQueryComplexityEstimation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			complexity, recommendations := EstimateQueryComplexity(tt.sortFields, tt.estimatedRows, DefaultLargeScaleConfig)
+			complexity, recommendations := utils.EstimateQueryComplexity(tt.sortFields, tt.estimatedRows, utils.DefaultLargeScaleConfig)
 			
 			if complexity != tt.expectedComplexity {
 				t.Errorf("expected complexity %s, got %s", tt.expectedComplexity, complexity)
@@ -178,7 +179,7 @@ func TestOptimizedQueryGeneration(t *testing.T) {
 		{Field: "name", Direction: models.SortAsc},
 	}
 	
-	config := LargeScaleSortConfig{
+	config := utils.LargeScaleSortConfig{
 		IndexHints: map[string]string{
 			"created_at": "idx_created_at",
 		},
@@ -189,7 +190,7 @@ func TestOptimizedQueryGeneration(t *testing.T) {
 	limit := 100
 	offset := 50
 	
-	result := GenerateOptimizedClickHouseQuery(baseQuery, sortFields, config, limit, offset)
+	result := utils.GenerateOptimizedClickHouseQuery(baseQuery, sortFields, config, limit, offset)
 	
 	expected := "SELECT * FROM table ORDER BY `created_at` DESC, `name` ASC LIMIT 100 OFFSET 50 /* INDEX_HINT: idx_created_at */"
 	
@@ -206,11 +207,11 @@ func BenchmarkSortValidation(b *testing.B) {
 		{Field: "total_files", Direction: models.SortDesc},
 	}
 	
-	opts := TenantSortOptions
+	opts := utils.TenantSortOptions
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ValidateSortFields(sortFields, opts)
+		_, err := utils.ValidateSortFields(sortFields, opts)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -226,7 +227,7 @@ func BenchmarkOrderByGeneration(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GenerateClickHouseOrderBy(sortFields)
+		_ = utils.GenerateClickHouseOrderBy(sortFields)
 	}
 }
 
@@ -241,7 +242,7 @@ func BenchmarkStreamingQueryGeneration(b *testing.B) {
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := GenerateStreamingQuery("SELECT * FROM large_table", sortFields, 10000, lastValues)
+		_, err := utils.GenerateStreamingQuery("SELECT * FROM large_table", sortFields, 10000, lastValues)
 		if err != nil {
 			b.Fatal(err)
 		}

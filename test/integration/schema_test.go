@@ -1,8 +1,10 @@
-package clickhouse
+package integration
 
 import (
 	"testing"
 	"reflect"
+	
+	"github.com/your-org/storage-control-plane/internal/clickhouse"
 )
 
 func TestMapJSONTypeToClickHouseType(t *testing.T) {
