@@ -1,18 +1,18 @@
-# .air.toml
+# .air.toml - Hot reload configuration for Storage Control Plane
 root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/main.exe ./cmd/api"
-  bin = "tmp/main.exe"
-  include_ext = ["go"]
-  exclude_dir = ["tmp"]
+  cmd = "go build -o ./tmp/storage-control-plane.exe ."
+  bin = "tmp/storage-control-plane.exe"
+  include_ext = ["go", "env"]
+  exclude_dir = ["tmp", ".git", ".backup", "vendor"]
   exclude_file = []
-  exclude_regex = []
+  exclude_regex = ["_test.go"]
   delay = 1000
-  log = "air.log"
+  log = "build-errors.log"
   send_interrupt = true
-  kill_delay = 1000
+  kill_delay = 2000
 
 [log]
   color = "true"
@@ -20,3 +20,4 @@ tmp_dir = "tmp"
 
 [screen]
   clear_on_rebuild = true
+  keep_scroll = false

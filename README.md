@@ -1,32 +1,354 @@
-# Storage Control Plane - Development Guide
+# Storage Control Plane - Go Monolith
 
-## 🚀 Quick Start
+🚀 **Microservices-ready Go implementation** of the distributed storage system, currently running as a **monolith** for rapid development and testing.
 
-### Prerequisites
-- **Go 1.24+** installed
-- **Air** for hot reload: `go install github.com/air-verse/air@latest`
-- **Make** (optional, for convenience commands)
+## 🎯 **Architecture Overview**
+
+This Go implementation mirrors the Python microservices architecture but runs as a **single binary** for:
+- ✅ **Faster development** - No Docker complexity during development
+- ✅ **Easier debugging** - All services in one process
+- ✅ **Simplified deployment** - Single binary deployment
+- ✅ **Future microservices split** - Clean service boundaries maintained
+
+### **Services in Monolith**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Go Monolith (main.go)                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 🔐 Auth Gateway      (8080) │ 🏢 Tenant Node       (8000) │
+│ 🎯 Operation Node    (8081) │ 🧠 CBO Engine        (8082) │  
+│ 📊 Metadata Catalog  (8083) │ 📈 Monitoring        (8084) │
+│ 🔍 Query Interpreter (8085) │                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 🚀 **Quick Start**
+
+### **Prerequisites**
+- **Go 1.24+** (latest stable)
 - **Git** for version control
+- **Air** for hot reload: `go install github.com/air-verse/air@latest`
 
-### 1. Clone and Setup
+### **1. Setup & Run**
 ```bash
+# Clone and navigate
 git clone <your-repo-url>
 cd storage_control_plane
 
-# Copy environment template
-cp .env.example .env
-
 # Install dependencies
 go mod download
-```
 
-### 2. Start Development Server
-```bash
-# Method 1: Using Air (Hot Reload) - Recommended
+# Copy environment template  
+cp .env.example .env
+
+# Start with hot reload (recommended)
 air
 
-# Method 2: Using Make
-make dev
+# OR start normally
+go run .
+```
+
+### **2. Verify Services**
+```bash
+# Check all services are running
+curl http://localhost:8080/health  # Auth Gateway
+curl http://localhost:8000/health  # Tenant Node
+curl http://localhost:8081/health  # Operation Node  
+curl http://localhost:8082/health  # CBO Engine
+curl http://localhost:8083/health  # Metadata Catalog
+curl http://localhost:8084/health  # Monitoring
+curl http://localhost:8085/health  # Query Interpreter
+
+# View dashboard
+open http://localhost:8084/dashboard
+```
+
+## 📊 **Service Endpoints**
+
+### **🔐 Auth Gateway (Port 8080)**
+```bash
+POST /auth/login      # User authentication
+POST /auth/validate   # Token validation  
+POST /auth/refresh    # Token refresh
+POST /auth/logout     # User logout
+GET  /health          # Health check
+```
+
+### **🏢 Tenant Node (Port 8000)**
+```bash
+POST /data/execute    # Execute queries on data
+POST /data/store      # Store new data
+GET  /data/retrieve   # Retrieve data
+GET  /data/stats      # Data statistics
+GET  /health          # Health check
+```
+
+### **🎯 Operation Node (Port 8081)**
+```bash
+POST /query/execute   # Execute distributed queries
+GET  /query/plan      # Get query execution plan
+GET  /query/status    # Query execution status  
+GET  /nodes/status    # Node cluster status
+GET  /health          # Health check
+```
+
+### **🧠 CBO Engine (Port 8082)**
+```bash
+POST /optimize/query  # Optimize query plans
+GET  /optimize/stats  # Optimizer statistics
+GET  /optimize/config # Optimizer configuration
+GET  /health          # Health check  
+```
+
+### **📊 Metadata Catalog (Port 8083)**
+```bash
+POST /metadata/partitions # Get partition metadata
+GET  /metadata/tables     # Get table metadata
+GET  /metadata/indexes    # Get index information
+GET  /metadata/stats      # Metadata statistics
+GET  /health              # Health check
+```
+
+### **📈 Monitoring (Port 8084)**
+```bash
+GET /metrics          # System & query metrics
+GET /alerts           # Active alerts
+GET /logs             # Recent logs  
+GET /dashboard        # Web dashboard
+GET /health           # Health check
+```
+
+### **🔍 Query Interpreter (Port 8085)**
+```bash
+POST /parse/sql       # Parse SQL queries
+POST /parse/dsl       # Parse DSL queries  
+POST /validate/query  # Validate query syntax
+POST /transform/plan  # Transform to execution plan
+GET  /health          # Health check
+```
+
+## 🧪 **Development Workflow**
+
+### **1. Hot Reload Development**
+```bash
+# Install Air for hot reload
+go install github.com/air-verse/air@latest
+
+# Start development server (auto-restarts on file changes)
+air
+
+# The server will restart automatically when you modify .go files
+```
+
+### **2. Testing Endpoints**
+```bash
+# Test authentication
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"password"}'
+
+# Test query execution  
+curl -X POST http://localhost:8081/query/execute \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT * FROM orders LIMIT 10"}'
+
+# Test SQL parsing
+curl -X POST http://localhost:8085/parse/sql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT customer_id, SUM(amount) FROM orders GROUP BY customer_id"}'
+```
+
+### **3. Manual Testing**
+```bash
+# Build and run
+go build -o storage-control-plane .
+./storage-control-plane
+
+# Or direct run
+go run main.go services.go services_extended.go
+```
+
+## 🔧 **Configuration**
+
+### **Environment Variables (.env)**
+```bash
+# Database
+DB_HOST=localhost
+DB_PORT=5432  
+DB_NAME=storage_control
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Service Ports  
+AUTH_GATEWAY_PORT=8080
+TENANT_NODE_PORT=8000
+OPERATION_NODE_PORT=8081
+CBO_ENGINE_PORT=8082
+METADATA_CATALOG_PORT=8083
+MONITORING_PORT=8084
+QUERY_INTERPRETER_PORT=8085
+
+# Performance
+MAX_CONNECTIONS=100
+QUERY_TIMEOUT=30s
+CACHE_SIZE=1GB
+```
+
+## 🏗️ **Migration to Microservices**
+
+When ready to split into individual microservices:
+
+### **1. Service Extraction Pattern**
+```bash
+# Each service will become its own repository:
+storage-auth-gateway/     # Auth Gateway service
+storage-tenant-node/      # Tenant Node service  
+storage-operation-node/   # Operation Node service
+storage-cbo-engine/       # CBO Engine service
+storage-metadata-catalog/ # Metadata Catalog service
+storage-monitoring/       # Monitoring service
+storage-query-interpreter/# Query Interpreter service
+```
+
+### **2. Code Structure**
+```
+main.go                  # Main application entry point
+services.go              # Auth, Tenant, Operation node handlers  
+services_extended.go     # CBO, Metadata, Query, Monitoring handlers
+.env                     # Configuration
+go.mod                   # Dependencies
+go.sum                   # Dependency checksums
+```
+
+### **3. Split Strategy**
+1. **Create individual repositories** for each service
+2. **Extract handler functions** to separate main.go files
+3. **Add service-specific dependencies** to go.mod
+4. **Implement inter-service communication** (HTTP/gRPC)
+5. **Add Docker containers** for each service  
+6. **Deploy with Docker Compose** or Kubernetes
+
+## 🚀 **Production Deployment**
+
+### **1. Build for Production**
+```bash
+# Build optimized binary
+CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o storage-control-plane .
+
+# Or with Docker
+docker build -t storage-control-plane .
+docker run -p 8080-8085:8080-8085 storage-control-plane
+```
+
+### **2. Performance Tuning**  
+```bash
+# Environment variables for production
+export GOMAXPROCS=4
+export CGO_ENABLED=0  
+export GOOS=linux
+```
+
+## 📊 **System Monitoring**
+
+### **Health Checks**
+All services expose `/health` endpoints returning:
+```json
+{
+  "status": "healthy",
+  "service": "Auth Gateway", 
+  "version": "1.0.0",
+  "time": "2024-07-02T10:30:00Z"
+}
+```
+
+### **Metrics Dashboard**
+Visit: `http://localhost:8084/dashboard`
+
+### **API Monitoring**
+```bash
+# Get system metrics
+curl http://localhost:8084/metrics
+
+# Check active alerts  
+curl http://localhost:8084/alerts
+
+# View recent logs
+curl http://localhost:8084/logs
+```
+
+## 🔄 **Comparison with Python Version**
+
+| Aspect | **Python Microservices** | **Go Monolith** |
+|--------|---------------------------|------------------|
+| **🏗️ Architecture** | 7 separate Docker containers | Single Go binary |
+| **🚀 Startup Time** | 10-30 seconds (Docker) | 1-2 seconds |
+| **🔧 Development** | Docker Compose required | `go run .` |
+| **🧪 Testing** | Complex service orchestration | Simple local testing |
+| **📦 Deployment** | Multiple containers | Single binary |
+| **🔍 Debugging** | Distributed logs | Single process |
+| **⚡ Performance** | Network overhead between services | In-memory communication |
+| **🎯 Production** | True microservices | Monolith (for now) |
+
+## 🎯 **Current Status**
+
+✅ **COMPLETED:**
+- ✅ **Service Architecture** - All 7 services implemented
+- ✅ **HTTP Endpoints** - Complete API surface area
+- ✅ **Configuration** - Environment-based config
+- ✅ **Health Checks** - Individual service monitoring  
+- ✅ **Graceful Shutdown** - Clean service termination
+- ✅ **Development Setup** - Hot reload with Air
+- ✅ **Mock Responses** - Realistic test data
+
+🔄 **IN PROGRESS:**
+- 🔄 **Unit Tests** - Comprehensive test coverage
+- 🔄 **Integration Tests** - Service interaction testing
+- 🔄 **Database Integration** - Real data persistence
+- 🔄 **Performance Benchmarks** - Load testing
+
+📋 **NEXT STEPS:**
+1. **Add comprehensive unit tests** for all services
+2. **Implement database integration** (PostgreSQL + Redis)
+3. **Add real query parsing** with SQLGlot equivalent  
+4. **Performance testing** and optimization
+5. **Split into microservices** repositories
+6. **Container deployment** with Docker/Kubernetes
+
+## 💡 **Development Tips**
+
+### **Air Configuration (.air.toml)**
+```toml
+# Automatically reload on .go file changes
+[build]
+  cmd = "go build -o ./tmp/main ."
+  bin = "./tmp/main"
+  include_ext = ["go"]
+  exclude_dir = ["assets", "tmp", "vendor"]
+```
+
+### **VS Code Setup**
+1. **Install Go extension**
+2. **Configure settings.json:**
+```json
+{
+  "go.toolsManagement.checkForUpdates": "local",
+  "go.useLanguageServer": true,
+  "go.formatTool": "goimports"
+}
+```
+
+### **Useful Commands**
+```bash
+go mod tidy              # Clean up dependencies
+go fmt ./...             # Format all Go files  
+go vet ./...             # Static analysis
+go test ./...            # Run all tests
+go build -race .         # Build with race detection
+```
+
+---
+
+🎯 **This Go monolith provides the perfect foundation for rapid development while maintaining clean service boundaries for future microservices extraction.**
 
 # Method 3: Manual
 go run ./cmd/api

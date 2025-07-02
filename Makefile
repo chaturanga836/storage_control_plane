@@ -1,167 +1,108 @@
-# Makefile for Storage Control Plane
+# Storage Control Plane - Go Monolith Makefile
 
-.PHONY: test test-unit test-integration test-e2e build run clean help setup install-tools dev-linux
+.PHONY: help dev build test clean fmt vet deps air-install
 
 # Default target
 help:
-	@echo "Available commands:"
-	@echo "  make test          - Run unit + integration tests"
-	@echo "  make test-unit     - Run unit tests (fast, no dependencies)"
-	@echo "  make test-integration - Run integration tests (requires services)"
-	@echo "  make test-e2e      - Run end-to-end tests"
-	@echo "  make test-all      - Run all tests including E2E"
-	@echo "  make build         - Build the application"
-	@echo "  make run           - Run the application"
-	@echo "  make clean         - Clean build artifacts"
-	@echo "  make dev           - Run with hot reload (air)"
-	@echo "  make dev-linux     - Linux development setup"
-	@echo "  make setup         - Setup development environment"
-	@echo "  make install-tools - Install development tools"
+	@echo "🚀 Storage Control Plane - Available Commands:"
+	@echo ""
+	@echo "  dev          - Start development server with hot reload (air)"
+	@echo "  build        - Build the application binary"
+	@echo "  run          - Run the application directly"
+	@echo "  test         - Run all tests"
+	@echo "  test-verbose - Run tests with verbose output"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  fmt          - Format all Go files"
+	@echo "  vet          - Run Go vet (static analysis)"
+	@echo "  deps         - Download and tidy dependencies"
+	@echo "  air-install  - Install Air for hot reload"
+	@echo "  setup        - Full development setup"
+	@echo ""
+
+# Development server with hot reload
+dev:
+	@echo "🔥 Starting development server with hot reload..."
+	@air
 
 # Build the application
 build:
-	@echo "🔨 Building Storage Control Plane..."
-	@mkdir -p bin
-	go build -o bin/storage-control-plane ./cmd/api
+	@echo "🏗️ Building Storage Control Plane..."
+	@go build -o storage-control-plane .
 
-# Build for multiple platforms
-build-all:
-	@echo "🔨 Building for multiple platforms..."
-	@mkdir -p bin
-	GOOS=linux GOARCH=amd64 go build -o bin/storage-control-plane-linux-amd64 ./cmd/api
-	GOOS=windows GOARCH=amd64 go build -o bin/storage-control-plane-windows-amd64.exe ./cmd/api
-	GOOS=darwin GOARCH=amd64 go build -o bin/storage-control-plane-darwin-amd64 ./cmd/api
-	GOOS=darwin GOARCH=arm64 go build -o bin/storage-control-plane-darwin-arm64 ./cmd/api
-	@echo "✅ Built for Linux, Windows, macOS (Intel & Apple Silicon)"
-
-# Run unit tests (fast, no external dependencies)
-test-unit:
-	@echo "🧪 Running unit tests..."
-	go test -v ./test/unit/...
-
-# Run integration tests (requires external services)
-test-integration:
-	@echo "🔗 Running integration tests..."
-	@echo "⚠️  Make sure ClickHouse and other services are running"
-	go test -v ./test/integration/...
-
-# Run end-to-end tests
-test-e2e:
-	@echo "🚀 Running end-to-end tests..."
-ifeq ($(OS),Windows_NT)
-	powershell -ExecutionPolicy Bypass -File ./test/e2e/test_e2e.ps1
-else
-	./test/e2e/test_e2e.sh
-endif
-
-# Run all tests
-test: test-unit test-integration
-	@echo "✅ All tests completed"
-
-# Run all tests including E2E
-test-all: test-unit test-integration test-e2e
-	@echo "🎉 All tests (including E2E) completed"
-
-# Run end-to-end tests (requires running server)
-test-e2e:
-	@echo "🌐 Running end-to-end tests..."
-	@echo "⚠️  Make sure the server is running on :8081"
-	@if command -v pwsh &> /dev/null; then \
-		pwsh -File test_e2e.ps1; \
-	elif [ -f "test_e2e.sh" ]; then \
-		chmod +x test_e2e.sh && ./test_e2e.sh; \
-	else \
-		echo "❌ No E2E test script found"; \
-	fi
-
-# Linux/Unix development workflow
-dev-linux:
-	@echo "🐧 Setting up Linux development environment..."
-	@if [ -f "dev.sh" ]; then \
-		chmod +x dev.sh && ./dev.sh; \
-	else \
-		echo "❌ dev.sh not found"; \
-	fi
-
-# Setup development environment
-setup:
-	@echo "🔧 Setting up development environment..."
-	@mkdir -p data/rocksdb data/parquet data/wal tmp bin
-	@if [ ! -f ".env" ]; then \
-		cp .env.example .env; \
-		echo "📄 Created .env from .env.example"; \
-	fi
-	go mod download
-	@echo "✅ Development environment ready"
-
-# Install development tools
-install-tools:
-	@echo "🛠️  Installing development tools..."
-	go install github.com/cosmtrek/air@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-	go install golang.org/x/tools/cmd/goimports@latest
-	@echo "✅ Development tools installed"
-
-# Run the application
+# Run without hot reload
 run:
 	@echo "🚀 Starting Storage Control Plane..."
-	go run ./cmd/api
+	@go run .
 
-# Run with hot reload
-dev:
-	@echo "🔥 Starting with hot reload..."
-	air
+# Run tests
+test:
+	@echo "🧪 Running tests..."
+	@go test ./...
 
-# Clean build artifacts and test data
+# Run tests with verbose output
+test-verbose:
+	@echo "🧪 Running tests (verbose)..."
+	@go test -v ./...
+
+# Clean build artifacts
 clean:
-	@echo "🧹 Cleaning up..."
-	rm -rf bin/
-	rm -rf tmp/
-	rm -rf test_data/
-	rm -f *.log
-	rm -f coverage.out coverage.html
-	go clean -cache -testcache
+	@echo "🧹 Cleaning build artifacts..."
+	@rm -rf tmp/
+	@rm -f storage-control-plane
+	@rm -f storage-control-plane.exe
+	@rm -f build-errors.log
 
-# Setup test environment
-setup-test:
-	@echo "🔧 Setting up test environment..."
-	mkdir -p test_data/rocksdb
-	mkdir -p test_data/parquet
-	cp .env.test .env
-
-# Performance tests
-test-perf:
-	@echo "⚡ Running performance tests..."
-	go test -bench=. -benchmem ./internal/...
-
-# Coverage report
-test-coverage:
-	@echo "📊 Generating coverage report..."
-	go test -coverprofile=coverage.out ./internal/... ./pkg/...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "📋 Coverage report generated: coverage.html"
-
-# Lint code
-lint:
-	@echo "🔍 Linting code..."
-	@if command -v golangci-lint &> /dev/null; then \
-		golangci-lint run; \
-	else \
-		echo "⚠️  golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
-	fi
-
-# Format code
+# Format Go code
 fmt:
-	@echo "💅 Formatting code..."
-	go fmt ./...
-	goimports -w .
+	@echo "🎨 Formatting Go code..."
+	@go fmt ./...
 
-# Check for security issues
-security:
-	@echo "🔒 Checking for security issues..."
-	@if command -v gosec &> /dev/null; then \
-		gosec ./...; \
-	else \
-		echo "⚠️  gosec not installed. Install with: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest"; \
-	fi
+# Run static analysis
+vet:
+	@echo "🔍 Running static analysis..."
+	@go vet ./...
+
+# Download and tidy dependencies
+deps:
+	@echo "📦 Managing dependencies..."
+	@go mod download
+	@go mod tidy
+
+# Install Air for hot reload
+air-install:
+	@echo "💨 Installing Air for hot reload..."
+	@go install github.com/air-verse/air@latest
+
+# Full development setup
+setup: air-install deps
+	@echo "🛠️ Setting up development environment..."
+	@cp .env.example .env 2>/dev/null || echo ".env already exists"
+	@echo "✅ Setup complete! Run 'make dev' to start development server"
+
+# Production build
+build-prod:
+	@echo "🏭 Building for production..."
+	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o storage-control-plane .
+
+# Health check all services
+health-check:
+	@echo "🏥 Checking service health..."
+	@curl -s http://localhost:8080/health | jq . || echo "Auth Gateway (8080) not responding"
+	@curl -s http://localhost:8000/health | jq . || echo "Tenant Node (8000) not responding"
+	@curl -s http://localhost:8081/health | jq . || echo "Operation Node (8081) not responding"
+	@curl -s http://localhost:8082/health | jq . || echo "CBO Engine (8082) not responding"
+	@curl -s http://localhost:8083/health | jq . || echo "Metadata Catalog (8083) not responding"
+	@curl -s http://localhost:8084/health | jq . || echo "Monitoring (8084) not responding"
+	@curl -s http://localhost:8085/health | jq . || echo "Query Interpreter (8085) not responding"
+
+# Demo API calls
+demo:
+	@echo "🎭 Running API demos..."
+	@echo "1. Auth login:"
+	@curl -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"password"}' | jq .
+	@echo ""
+	@echo "2. Execute distributed query:"
+	@curl -X POST http://localhost:8081/query/execute -H "Content-Type: application/json" -d '{"query":"SELECT * FROM orders LIMIT 10"}' | jq .
+	@echo ""
+	@echo "3. Parse SQL query:"
+	@curl -X POST http://localhost:8085/parse/sql -H "Content-Type: application/json" -d '{"query":"SELECT customer_id, SUM(amount) FROM orders GROUP BY customer_id"}' | jq .
