@@ -333,52 +333,65 @@ export GOGC=100
 export GOMEMLIMIT=1024MiB
 ```
 
-## Performance Optimization
+---
 
-### For Production Deployment:
+## Troubleshooting Common Issues
+
+### 1. Permission Denied Error
+If you get `Permission denied` when running the script:
 ```bash
-# Build with optimizations
-go build -ldflags="-w -s" -o storage-control-plane .
+# Make the script executable
+chmod +x deploy_ec2.sh
 
-# Enable Go profiling (optional)
-go build -tags=profile -o storage-control-plane .
-
-# Set production environment variables
-export GOMAXPROCS=4
-export GOGC=100
+# Then run it
+./deploy_ec2.sh
 ```
 
-## Monitoring and Logging
-
-### Check Service Status
+### 2. Git Ownership Issues
+If you see `fatal: detected dubious ownership in repository`:
 ```bash
-# Systemd status
+# Option 1: Add safe directory (recommended)
+git config --global --add safe.directory /opt/storage_control_plane
+
+# Option 2: Fix ownership (if switching between users)
+sudo chown -R ubuntu:ubuntu /opt/storage_control_plane
+
+# Option 3: If running as root and want to continue as root
+chown -R root:root /opt/storage_control_plane
+```
+
+### 3. Go Installation Issues
+If Go installation fails:
+```bash
+# Manual Go installation
+cd /tmp
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+```
+
+### 4. Build Failures
+If the Go build fails:
+```bash
+# Clean and retry
+go clean -cache
+go mod download
+go build -o storage-control-plane .
+```
+
+### 5. Service Startup Issues
+If the systemd service fails to start:
+```bash
+# Check service status
 sudo systemctl status storage-control-plane
 
-# View logs
+# Check logs
 sudo journalctl -u storage-control-plane -f
 
-# Check resource usage
-htop
-```
-
-### Log Rotation (Recommended)
-```bash
-# Create logrotate config
-sudo tee /etc/logrotate.d/storage-control-plane > /dev/null <<EOF
-/home/ubuntu/storage_control_plane/control-plane.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0644 ubuntu ubuntu
-    postrotate
-        systemctl reload storage-control-plane
-    endscript
-}
-EOF
+# Restart manually
+sudo systemctl restart storage-control-plane
 ```
 
 ---
