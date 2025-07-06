@@ -66,7 +66,6 @@ else
 fi
 
 print_header "2. Setting up project directory..."
-cd $HOME
 
 # Check if we're already in the storage_control_plane directory
 if [ "$(basename $(pwd))" = "storage_control_plane" ]; then
@@ -75,10 +74,17 @@ elif [ -d "storage_control_plane" ]; then
     cd storage_control_plane
     print_status "Found existing storage_control_plane directory"
 else
-    print_error "storage_control_plane directory not found. Please clone the repository first:"
-    echo "  git clone https://github.com/chaturanga836/storage_control_plane.git"
-    echo "  cd storage_control_plane"
-    exit 1
+    # Try to find storage_control_plane directory in home
+    cd $HOME
+    if [ -d "storage_control_plane" ]; then
+        cd storage_control_plane
+        print_status "Found storage_control_plane directory in home"
+    else
+        print_error "storage_control_plane directory not found. Please clone the repository first:"
+        echo "  git clone https://github.com/chaturanga836/storage_control_plane.git"
+        echo "  cd storage_control_plane"
+        exit 1
+    fi
 fi
 
 print_status "Working in: $(pwd)"
@@ -144,6 +150,7 @@ else
 fi
 
 print_header "6. Setting up systemd service..."
+CURRENT_DIR=$(pwd)
 sudo tee /etc/systemd/system/storage-control-plane.service > /dev/null <<EOF
 [Unit]
 Description=Storage Control Plane
@@ -152,12 +159,12 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$HOME/storage_control_plane
-ExecStart=$HOME/storage_control_plane/storage-control-plane
+WorkingDirectory=$CURRENT_DIR
+ExecStart=$CURRENT_DIR/storage-control-plane
 Restart=always
 RestartSec=10
 Environment=PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-EnvironmentFile=$HOME/storage_control_plane/.env
+EnvironmentFile=$CURRENT_DIR/.env
 
 [Install]
 WantedBy=multi-user.target

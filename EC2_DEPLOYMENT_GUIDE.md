@@ -6,6 +6,41 @@
 - Git access to your repository
 - At least 4GB RAM and 10GB free disk space
 
+## Quick Start - Automated Deployment
+
+### Option A: Use the Automated Script (RECOMMENDED)
+
+```bash
+# SSH to your EC2 instance
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+# Clone the repository
+git clone https://github.com/chaturanga836/storage_control_plane.git
+cd storage_control_plane
+
+# Make the deployment script executable
+chmod +x deploy_ec2.sh
+
+# Run the automated deployment
+./deploy_ec2.sh
+```
+
+**The script will automatically:**
+- Install Go 1.21 if not present
+- Download dependencies
+- Create environment configuration
+- Build the Go application
+- Set up systemd service
+- Start the service and run health checks
+
+**Note:** The script can be run from inside the `storage_control_plane` directory or from its parent directory.
+
+---
+
+## Manual Deployment (Alternative)
+
+If you prefer to deploy manually or need to customize the setup, follow these steps:
+
 ## Step 1: Setup EC2 Instance
 
 ### Launch and Configure EC2 Instance
