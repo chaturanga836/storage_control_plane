@@ -141,12 +141,31 @@ else
 fi
 
 print_header "5. Building Go application..."
-if go build -o storage-control-plane .; then
+
+# Fix: Exclude test files from main build by building only main package files
+# or rename problematic test files
+if [ -f "functional_test_suite.go" ]; then
+    print_status "Renaming test files to prevent build conflicts..."
+    mv functional_test_suite.go functional_test_suite_test.go 2>/dev/null || true
+fi
+
+# Build only the main application, excluding test files
+if go build -o storage-control-plane main.go services.go services_extended.go; then
     print_status "Build successful: storage-control-plane binary created"
     ls -la storage-control-plane
 else
-    print_error "Build failed. Please check the error messages above."
-    exit 1
+    print_warning "Specific file build failed, trying alternative build..."
+    # Alternative: build with exclusions
+    if go build -o storage-control-plane .; then
+        print_status "Build successful: storage-control-plane binary created"
+        ls -la storage-control-plane
+    else
+        print_error "Build failed. Please check the error messages above."
+        print_error "Common issues:"
+        print_error "- Test files mixed with main package"
+        print_error "- Missing imports or undefined functions"
+        exit 1
+    fi
 fi
 
 print_header "6. Setting up systemd service..."
