@@ -110,31 +110,42 @@ if [ ! -f ".env" ]; then
         cp .env.example .env
         print_status "Environment file created from template"
     else
-        # Create basic .env file
+        # Create comprehensive .env file
+        echo "Please provide your Python services EC2 IP address (or press Enter for localhost):"
+        read -r PYTHON_IP
+        if [ -z "$PYTHON_IP" ]; then
+            PYTHON_IP="localhost"
+        fi
+        
         cat > .env << EOF
 # Go Control Plane Configuration
-PORT=8080
+PORT=8090
 ENVIRONMENT=production
 LOG_LEVEL=info
 
-# Database Configuration (optional)
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=storage_control
-DB_USER=postgres
-DB_PASSWORD=password
+# Python Services Configuration
+PYTHON_IP=${PYTHON_IP}
 
-# Redis Configuration (optional)
-REDIS_HOST=localhost
-REDIS_PORT=6379
+# Python Service Endpoints
+AUTH_GATEWAY_URL=http://${PYTHON_IP}:8080
+TENANT_NODE_URL=http://${PYTHON_IP}:8001
+METADATA_CATALOG_URL=http://${PYTHON_IP}:8087
+OPERATION_NODE_URL=http://${PYTHON_IP}:8086
+CBO_ENGINE_URL=http://${PYTHON_IP}:8088
+MONITORING_URL=http://${PYTHON_IP}:8089
+QUERY_INTERPRETER_URL=http://${PYTHON_IP}:8085
 
-# Python Services (update with your Python EC2 IP if separate instance)
-PYTHON_SERVICES_HOST=localhost
-PYTHON_AUTH_GATEWAY=http://localhost:8080
-PYTHON_TENANT_NODE=http://localhost:8001
-PYTHON_METADATA_CATALOG=http://localhost:8087
+# Distributed Mode
+DISTRIBUTED_MODE=true
+PYTHON_SERVICES_HOST=${PYTHON_IP}
+GO_SERVICES_HOST=15.207.184.150
+
+# Health Check Settings
+HEALTH_CHECK_INTERVAL=30
+SERVICE_TIMEOUT=10
+RETRY_ATTEMPTS=3
 EOF
-        print_status "Basic environment file created"
+        print_status "Environment file created with Python IP: $PYTHON_IP"
     fi
 else
     print_status "Environment file already exists"
@@ -215,53 +226,63 @@ check_endpoint() {
     local url=$1
     local name=$2
     
+    # Fix URL formatting
+    if [[ "$url" != http://* ]]; then
+        url="http://$url"
+    fi
+    
     if curl -s --connect-timeout 5 "$url" > /dev/null; then
         print_status "✅ $name is healthy"
         return 0
     else
-        print_warning "❌ $name is not responding"
+        print_warning "❌ $name is not responding ($url)"
         return 1
     fi
 }
 
 # Check all endpoints
 healthy_count=0
-total_endpoints=7
+total_endpoints=1
 
-endpoints=(
-    "http://localhost:8080/health:Main Service"
-    "http://localhost:8000/health:Tenant Node"
-    "http://localhost:8081/health:Operation Node"
-    "http://localhost:8082/health:CBO Engine"
-    "http://localhost:8083/health:Metadata Catalog"
-    "http://localhost:8084/health:Monitoring"
-    "http://localhost:8085/health:Query Interpreter"
-)
-
-for endpoint in "${endpoints[@]}"; do
-    IFS=':' read -r url name <<< "$endpoint"
-    if check_endpoint "$url" "$name"; then
+# Check if our Go control plane service is responding
+print_status "Checking Go control plane service..."
+if check_endpoint "http://localhost:8090/health" "Go Control Plane"; then
+    ((healthy_count++))
+    print_status "✅ Go control plane is healthy!"
+else
+    print_warning "❌ Go control plane not responding on port 8090"
+    # Try alternative endpoint
+    if check_endpoint "http://localhost:8090/" "Go Control Plane Root"; then
+        print_status "✅ Go control plane root endpoint responding"
         ((healthy_count++))
     fi
-done
+fi
 
 print_header "9. Deployment Summary"
 echo "======================================"
 echo "Service Status: $(sudo systemctl is-active storage-control-plane)"
 echo "Service Enabled: $(sudo systemctl is-enabled storage-control-plane)"
 echo "Healthy Endpoints: $healthy_count/$total_endpoints"
-echo "Process ID: $(pgrep storage-control-plane || echo 'Not running')"
-echo "Memory Usage: $(ps -o pid,vsz,rss,comm -p $(pgrep storage-control-plane) 2>/dev/null | tail -1 || echo 'N/A')"
+echo "Process ID: $(pgrep -f storage-control-plane || echo 'Not running')"
+echo "Memory Usage: $(ps -o pid,vsz,rss,comm -p $(pgrep -f storage-control-plane) 2>/dev/null | tail -1 || echo 'N/A')"
 
-# Get public IP
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "unknown")
-PRIVATE_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "unknown")
+# Get public IP - handle metadata service issues gracefully
+PUBLIC_IP=$(timeout 5 curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null | head -1 || echo "unknown")
+PRIVATE_IP=$(timeout 5 curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null | head -1 || echo "unknown")
+
+# Clean up any HTML error responses
+if [[ "$PUBLIC_IP" == *"<"* ]]; then
+    PUBLIC_IP="unknown"
+fi
+if [[ "$PRIVATE_IP" == *"<"* ]]; then
+    PRIVATE_IP="unknown"
+fi
 
 echo ""
 echo "🌐 Access URLs:"
-echo "  Public:  http://$PUBLIC_IP:8080"
-echo "  Private: http://$PRIVATE_IP:8080"
-echo "  Local:   http://localhost:8080"
+echo "  Public:  http://$PUBLIC_IP:8090"
+echo "  Private: http://$PRIVATE_IP:8090"
+echo "  Local:   http://localhost:8090"
 
 if [ $healthy_count -eq $total_endpoints ]; then
     echo ""
@@ -269,10 +290,10 @@ if [ $healthy_count -eq $total_endpoints ]; then
     echo "Your Go Control Plane is fully operational!"
     echo ""
     echo "📋 Next Steps:"
-    echo "1. Update security groups to allow access on port 8080"
-    echo "2. Test endpoints: curl http://localhost:8080/health"
+    echo "1. Update security groups to allow access on port 8090"
+    echo "2. Test endpoints: curl http://localhost:8090/health"
     echo "3. Monitor logs: sudo journalctl -u storage-control-plane -f"
-    echo "4. Configure connection to Python services in .env file (if needed)"
+    echo "4. Configure connection to Python services in .env file (if on separate instance)"
 else
     echo ""
     echo "⚠️  PARTIAL DEPLOYMENT"

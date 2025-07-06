@@ -260,6 +260,53 @@ curl -X POST http://localhost:8081/query/execute \
   -d '{"query": "SELECT COUNT(*) FROM orders", "tenant_id": "tenant_001"}'
 ```
 
+## **Step 5: Configure Python Services Connection**
+
+If your Python services are running on a separate EC2 instance, you need to configure the Go control plane to connect to them:
+
+### **Option A: Use the Configuration Script (Recommended)**
+
+```bash
+# Run the configuration script
+chmod +x configure_python_endpoints.sh
+./configure_python_endpoints.sh
+```
+
+This script will:
+- Prompt for your Python EC2 instance IP address
+- Create the appropriate `.env` configuration
+- Optionally restart the service
+
+### **Option B: Manual Configuration**
+
+```bash
+# Edit the environment file
+nano .env
+
+# Update the PYTHON_IP variable:
+PYTHON_IP=your-python-ec2-ip
+
+# The script will automatically configure all endpoints:
+# AUTH_GATEWAY_URL=http://your-python-ec2-ip:8080
+# TENANT_NODE_URL=http://your-python-ec2-ip:8001
+# etc.
+```
+
+### **Step 6: Restart and Verify**
+
+```bash
+# Restart the service to pick up new configuration
+sudo systemctl restart storage-control-plane
+
+# Check service status
+sudo systemctl status storage-control-plane
+
+# Test the health endpoint
+curl http://localhost:8090/health
+```
+
+---
+
 ## ✅ **GO DEPLOYMENT SUCCESS CONFIRMATION**
 
 🎉 **Congratulations!** Your Go control plane is now running!
