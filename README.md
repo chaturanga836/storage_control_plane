@@ -1,21 +1,22 @@
 # Storage Control Plane - Go Monolith
 
-🚀 **Microservices-ready Go implementation** of the distributed storage system, currently running as a **monolith** for rapid development and testing.
+🚀 **Microservices-ready Go implementation** of the distributed storage system control plane, designed to coordinate with Python microservices running on separate EC2 instances.
 
 ## 🎯 **Architecture Overview**
 
-This Go implementation mirrors the Python microservices architecture but runs as a **single binary** for:
-- ✅ **Faster development** - No Docker complexity during development
-- ✅ **Easier debugging** - All services in one process
-- ✅ **Simplified deployment** - Single binary deployment
-- ✅ **Future microservices split** - Clean service boundaries maintained
+This Go control plane acts as the **orchestration layer** for a distributed storage system where:
+- ✅ **Python microservices** run on dedicated EC2 instances (data processing)
+- ✅ **Go control plane** runs on separate EC2 instance (coordination & control)
+- ✅ **Single binary deployment** - No Docker complexity for the Go component
+- ✅ **Inter-service communication** - HTTP APIs between Go and Python services
+- ✅ **Distributed coordination** - Real-time communication across EC2 instances
 
 ### **Services in Monolith**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Go Monolith (main.go)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ 🔐 Auth Gateway      (8080) │ 🏢 Tenant Node       (8000) │
+│ 🔐 Auth Gateway      (8090) │ 🏢 Tenant Node       (8000) │
 │ 🎯 Operation Node    (8081) │ 🧠 CBO Engine        (8082) │  
 │ 📊 Metadata Catalog  (8083) │ 📈 Monitoring        (8084) │
 │ 🔍 Query Interpreter (8085) │                              │
@@ -51,7 +52,7 @@ go run .
 ### **2. Verify Services**
 ```bash
 # Check all services are running
-curl http://localhost:8080/health  # Auth Gateway
+curl http://localhost:8090/health  # Auth Gateway
 curl http://localhost:8000/health  # Tenant Node
 curl http://localhost:8081/health  # Operation Node  
 curl http://localhost:8082/health  # CBO Engine
@@ -65,7 +66,7 @@ open http://localhost:8084/dashboard
 
 ## 📊 **Service Endpoints**
 
-### **🔐 Auth Gateway (Port 8080)**
+### **🔐 Auth Gateway (Port 8090)**
 ```bash
 POST /auth/login      # User authentication
 POST /auth/validate   # Token validation  
@@ -143,7 +144,7 @@ air
 ### **2. Testing Endpoints**
 ```bash
 # Test authentication
-curl -X POST http://localhost:8080/auth/login \
+curl -X POST http://localhost:8090/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"password"}'
 
@@ -165,33 +166,34 @@ go build -o storage-control-plane .
 ./storage-control-plane
 
 # Or direct run
-go run main.go services.go services_extended.go
+go run .
 ```
 
 ## 🔧 **Configuration**
 
 ### **Environment Variables (.env)**
 ```bash
-# Database
-DB_HOST=localhost
-DB_PORT=5432  
-DB_NAME=storage_control
-DB_USER=postgres
-DB_PASSWORD=postgres
+# Go Control Plane Configuration
+PORT=8090
+ENVIRONMENT=production
+LOG_LEVEL=info
 
-# Service Ports  
-AUTH_GATEWAY_PORT=8080
-TENANT_NODE_PORT=8000
-OPERATION_NODE_PORT=8081
-CBO_ENGINE_PORT=8082
-METADATA_CATALOG_PORT=8083
-MONITORING_PORT=8084
-QUERY_INTERPRETER_PORT=8085
+# Python Services Configuration  
+PYTHON_IP=65.0.150.75
 
-# Performance
-MAX_CONNECTIONS=100
-QUERY_TIMEOUT=30s
-CACHE_SIZE=1GB
+# Python Service Endpoints
+AUTH_GATEWAY_URL=http://65.0.150.75:8080
+TENANT_NODE_URL=http://65.0.150.75:8001
+METADATA_CATALOG_URL=http://65.0.150.75:8087
+OPERATION_NODE_URL=http://65.0.150.75:8086
+CBO_ENGINE_URL=http://65.0.150.75:8088
+MONITORING_URL=http://65.0.150.75:8089
+QUERY_INTERPRETER_URL=http://65.0.150.75:8085
+
+# Distributed Mode
+DISTRIBUTED_MODE=true
+PYTHON_SERVICES_HOST=65.0.150.75
+GO_SERVICES_HOST=15.207.184.150
 ```
 
 ## 🏗️ **Migration to Microservices**
@@ -216,8 +218,11 @@ main.go                  # Main application entry point
 services.go              # Auth, Tenant, Operation node handlers  
 services_extended.go     # CBO, Metadata, Query, Monitoring handlers
 .env                     # Configuration
+.env.example            # Environment template
 go.mod                   # Dependencies
 go.sum                   # Dependency checksums
+.air.toml               # Hot reload configuration
+Makefile                 # Build automation
 ```
 
 ### **3. Split Strategy**
@@ -522,31 +527,9 @@ LOG_LEVEL=debug
 ```
 
 ### Hot Reload Not Working
-Check `.air.toml` configuration:
-```toml
-[build]
-  include_ext = ["go"]
-  exclude_dir = ["tmp", "data", ".git"]
-```
-
-## 📁 Data Storage
-
-### Local Development Data
-```
-data/
-├── shared_rocksdb/          # RocksDB storage
-├── tenant_*/                # Per-tenant data
-│   └── source_*/           # Per-source data
-│       ├── *.parquet       # Parquet files
-│       └── _stats.json     # Metadata
-└── wal/                    # Write-Ahead Log files
-```
-
-### Cleanup Development Data
+Check `.air.toml` configuration and ensure Air is installed:
 ```bash
-make clean
-# or manually
-rm -rf data/ tmp/
+go install github.com/air-verse/air@latest
 ```
 
 ## 🔄 Git Workflow
@@ -561,9 +544,6 @@ tmp/
 # Environment
 .env
 .env.local
-
-# Data
-data/
 ```
 
 ### Development Branch
@@ -579,22 +559,22 @@ git push origin feature/your-feature
 
 ```bash
 # Build optimized binary
-go build -ldflags="-s -w" -o bin/storage-control-plane ./cmd/api
+go build -ldflags="-s -w" -o storage-control-plane .
 
 # Run production binary
-./bin/storage-control-plane
+./storage-control-plane
 ```
 
 ## 📊 Performance Monitoring
 
 ### Memory Usage
 ```bash
-go test -bench=. -benchmem ./internal/...
+go test -bench=. -benchmem ./...
 ```
 
 ### CPU Profiling
 ```bash
-go test -cpuprofile cpu.prof -bench . ./internal/...
+go test -cpuprofile cpu.prof -bench . ./...
 go tool pprof cpu.prof
 ```
 
@@ -609,9 +589,9 @@ go tool pprof cpu.prof
 ## 🎯 Next Steps
 
 1. **Start Development**: `air`
-2. **Run Tests**: `.\test_e2e.ps1`
+2. **Run Tests**: `make test`
 3. **Add Features**: Modify code, Air will auto-reload
-4. **Test Changes**: Use the test scripts
+4. **Deploy**: Use deployment guides in this repository
 5. **Commit Changes**: Follow Git workflow
 
 Happy coding! 🚀
