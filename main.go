@@ -154,10 +154,14 @@ func setupGracefulShutdown(cancel context.CancelFunc, serviceManager *ServiceMan
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 		
+		log.Println("⏳ Gracefully stopping all services...")
 		if err := serviceManager.StopAll(shutdownCtx); err != nil {
 			log.Printf("❌ Error during shutdown: %v", err)
+		} else {
+			log.Println("✅ All services stopped gracefully")
 		}
 		
+		log.Println("🏁 Shutdown complete")
 		cancel()
 	}()
 }
@@ -248,22 +252,54 @@ func (sm *ServiceManager) StopAll(ctx context.Context) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	if len(sm.services) == 0 {
+		log.Println("ℹ️  No services to stop")
+		return nil
+	}
+
+	log.Printf("🛑 Stopping %d services...", len(sm.services))
+	
 	var wg sync.WaitGroup
+	var errors []error
+	var mu sync.Mutex
+	
 	for serviceName, server := range sm.services {
 		wg.Add(1)
 		go func(name string, srv *http.Server) {
 			defer wg.Done()
 			log.Printf("🛑 Stopping %s...", name)
+			
 			if err := srv.Shutdown(ctx); err != nil {
 				log.Printf("❌ Error stopping %s: %v", name, err)
+				mu.Lock()
+				errors = append(errors, fmt.Errorf("failed to stop %s: %v", name, err))
+				mu.Unlock()
 			} else {
 				log.Printf("✅ %s stopped gracefully", name)
 			}
 		}(serviceName, server)
 	}
 
-	wg.Wait()
-	return nil
+	// Wait for all services to stop
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case <-done:
+		// All services stopped
+		if len(errors) > 0 {
+			return fmt.Errorf("some services failed to stop gracefully: %v", errors)
+		}
+		log.Println("✅ All services stopped successfully")
+		return nil
+	case <-ctx.Done():
+		log.Println("⚠️  Shutdown timeout exceeded, some services may not have stopped gracefully")
+		return ctx.Err()
+	}
 }
 
 func setupCommonRoutes(mux *http.ServeMux, serviceInfo ServiceInfo) {
