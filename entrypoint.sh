@@ -1,8 +1,9 @@
 #!/bin/bash
-# entrypoint.sh
+set -e
 
-# Fix permissions automatically
-chown -R 50000:50000 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+# Only try chown if running as root user (UID 0)
+if [ "$(id -u)" = "0" ]; then
+  chown -R 50000:50000 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins || true
+fi
 
-# Run airflow command passed as args
-exec "$@"
+exec airflow "$@"
