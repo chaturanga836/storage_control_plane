@@ -2,6 +2,7 @@ version: '3'
 services:
   postgres:
     image: postgres:15
+    container_name: postgres
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -12,10 +13,12 @@ services:
 
   redis:
     image: redis:7
+    container_name: redis
     restart: always
 
   airflow-webserver:
     image: apache/airflow:2.10.2
+    container_name: airflow-webserver
     depends_on:
       - postgres
       - redis
@@ -39,6 +42,7 @@ services:
 
   airflow-scheduler:
     image: apache/airflow:2.10.2
+    container_name: airflow-scheduler
     depends_on:
       - airflow-webserver
     environment:
