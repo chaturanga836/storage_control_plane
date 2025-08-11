@@ -10,25 +10,46 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
     container_name: redis
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   airflow-webserver:
     image: apache/airflow:2.10.2
     container_name: airflow-webserver
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
+      # Updated database configuration for Airflow 2.10+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__FERNET_KEY: ''
       AIRFLOW__WEBSERVER__SECRET_KEY: supersecretkey
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      # Additional performance and reliability settings
+      AIRFLOW__WEBSERVER__WORKERS: 4
+      AIRFLOW__WEBSERVER__WORKER_TIMEOUT: 120
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: 120
+      AIRFLOW__CELERY__WORKER_CONCURRENCY: 4
     ports:
       - "8085:8080"
     volumes:
@@ -36,25 +57,78 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./entrypoint.sh:/entrypoint.sh
+      - ./airflow.cfg:/opt/airflow/airflow.cfg
     entrypoint: ["/entrypoint.sh"]
     command: ["webserver"]
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   airflow-scheduler:
     image: apache/airflow:2.10.2
     container_name: airflow-scheduler
     depends_on:
-      - airflow-webserver
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
+      # Updated database configuration for Airflow 2.10+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
       AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      # Scheduler performance settings
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+      AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: 'false'
+      AIRFLOW__CELERY__WORKER_CONCURRENCY: 4
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./entrypoint.sh:/entrypoint.sh
+      - ./airflow.cfg:/opt/airflow/airflow.cfg
     entrypoint: ["/entrypoint.sh"]
     command: ["scheduler"]
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  airflow-worker:
+    image: apache/airflow:2.10.2
+    container_name: airflow-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Updated database configuration for Airflow 2.10+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CELERY__WORKER_CONCURRENCY: 4
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./entrypoint.sh:/entrypoint.sh
+      - ./airflow.cfg:/opt/airflow/airflow.cfg
+    entrypoint: ["/entrypoint.sh"]
+    command: ["celery", "worker"]
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "celery --app airflow.executors.celery_executor.app inspect ping -d \"celery@$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
